@@ -1,0 +1,264 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#080d18">
+  <title>JARVIS | Asistente personal</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #142b45, #080d18 65%);
+      color: #e8f7ff;
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    .app {
+      width: 100%;
+      max-width: 460px;
+      text-align: center;
+      border: 1px solid #214b65;
+      border-radius: 24px;
+      padding: 28px 20px;
+      background: rgba(8, 18, 32, .88);
+      box-shadow: 0 0 35px #00bfff18;
+    }
+    .label {
+      color: #53dfff;
+      letter-spacing: 5px;
+      font-size: 12px;
+    }
+    h1 { letter-spacing: 8px; margin-bottom: 5px; }
+    #status { color: #8baabd; font-size: 14px; }
+    .core {
+      width: 150px;
+      height: 150px;
+      margin: 28px auto;
+      border-radius: 50%;
+      border: 2px solid #38d8ff;
+      box-shadow: 0 0 22px #00bfff55, inset 0 0 24px #00bfff33;
+      display: grid;
+      place-items: center;
+      font-size: 48px;
+      color: #66e5ff;
+      animation: pulse 3s infinite ease-in-out;
+    }
+    @keyframes pulse {
+      50% { box-shadow: 0 0 38px #00bfff88, inset 0 0 30px #00bfff55; }
+    }
+    button {
+      width: 100%;
+      padding: 15px;
+      margin: 7px 0;
+      border-radius: 12px;
+      border: 1px solid #32cfff;
+      background: #102b40;
+      color: #e8faff;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:active { background: #1b4962; }
+    .primary { background: #087da5; }
+    input {
+      width: 100%;
+      padding: 14px;
+      border-radius: 10px;
+      border: 1px solid #28516a;
+      background: #07111e;
+      color: white;
+      font-size: 16px;
+      margin-top: 12px;
+    }
+    #reply {
+      min-height: 65px;
+      margin-top: 18px;
+      padding: 15px;
+      border-radius: 12px;
+      background: #0d1b2a;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+    .small { color: #7596aa; font-size: 12px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <div class="label">SISTEMA PERSONAL</div>
+    <h1>JARVIS</h1>
+    <p id="status">Sistema en espera</p>
+    <div class="core">J</div>
+
+    <button class="primary" id="voiceBtn">🎙 ACTIVAR VOZ</button>
+
+    <input id="command" placeholder="Escribe un comando..." autocomplete="off">
+    <button id="sendBtn">Ejecutar comando</button>
+    <button id="testBtn">Probar voz del asistente</button>
+
+    <div id="reply">JARVIS en línea. Esperando instrucciones.</div>
+
+    <p class="small">
+      Prueba: “¿Qué hora es?”, “abre YouTube”,
+      “abre WhatsApp” o “calcula 25 por 4”.
+    </p>
+  </main>
+
+  <script>
+    const statusEl = document.getElementById("status");
+    const replyEl = document.getElementById("reply");
+    const commandEl = document.getElementById("command");
+    const voiceBtn = document.getElementById("voiceBtn");
+
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    let recognition = null;
+    let listening = false;
+
+    function speak(text) {
+      replyEl.textContent = text;
+      if (!("speechSynthesis" in window)) {
+        statusEl.textContent = "Respuesta en pantalla";
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "es-HN";
+      utterance.rate = 1;
+      utterance.pitch = 0.95;
+      utterance.onstart = () => statusEl.textContent = "JARVIS respondiendo";
+      utterance.onend = () => statusEl.textContent = "Sistema en espera";
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function calculate(text) {
+      const match = text.match(
+        /(?:calcula|cuanto es|cuánto es)\s*(-?\d+(?:[.,]\d+)?)\s*(más|menos|por|entre|\+|-|\*|\/)\s*(-?\d+(?:[.,]\d+)?)/i
+      );
+      if (!match) return null;
+
+      const a = Number(match[1].replace(",", "."));
+      const op = match[2].toLowerCase();
+      const b = Number(match[3].replace(",", "."));
+      let result;
+
+      if (op === "más" || op === "+") result = a + b;
+      else if (op === "menos" || op === "-") result = a - b;
+      else if (op === "por" || op === "*") result = a * b;
+      else {
+        if (b === 0) return "No puedo dividir entre cero.";
+        result = a / b;
+      }
+
+      return "El resultado es " + result + ".";
+    }
+
+    function processCommand(raw) {
+      const text = raw.toLowerCase().trim();
+      if (!text) return;
+
+      const math = calculate(text);
+      if (math) {
+        speak(math);
+        return;
+      }
+
+      if (text.includes("hora")) {
+        speak("Son las " + new Date().toLocaleTimeString("es-HN", {
+          hour: "2-digit", minute: "2-digit"
+        }));
+      } else if (text.includes("fecha") || text.includes("día es")) {
+        speak("Hoy es " + new Date().toLocaleDateString("es-HN", {
+          weekday: "long", year: "numeric", month: "long", day: "numeric"
+        }));
+      } else if (text.includes("hola")) {
+        speak("Hola, Josué. JARVIS está preparado para ayudarte.");
+      } else if (text.includes("cómo estás") || text.includes("como estas")) {
+        speak("Todos los sistemas disponibles están listos para trabajar.");
+      } else if (text.includes("abre youtube")) {
+        speak("Abriendo YouTube.");
+        window.open("https://www.youtube.com/", "_blank");
+      } else if (text.includes("abre google")) {
+        speak("Abriendo Google.");
+        window.open("https://www.google.com/", "_blank");
+      } else if (text.includes("abre whatsapp")) {
+        speak("Intentando abrir WhatsApp.");
+        window.location.href = "https://wa.me/";
+      } else if (text.includes("ayuda") || text.includes("qué puedes hacer")) {
+        speak("Puedo decirte la hora y la fecha, hacer cálculos y abrir algunas páginas web.");
+      } else {
+        speak("Todavía no tengo un comando para eso. Puedes probar con hora, fecha, cálculos o abrir YouTube.");
+      }
+    }
+
+    document.getElementById("sendBtn").addEventListener("click", () => {
+      processCommand(commandEl.value);
+      commandEl.value = "";
+    });
+
+    commandEl.addEventListener("keydown", event => {
+      if (event.key === "Enter") {
+        document.getElementById("sendBtn").click();
+      }
+    });
+
+    document.getElementById("testBtn").addEventListener("click", () => {
+      speak("Prueba de voz completada. JARVIS está funcionando.");
+    });
+
+    voiceBtn.addEventListener("click", () => {
+      if (!SpeechRecognition) {
+        speak("El reconocimiento de voz no está disponible en este navegador. Puedes escribir tus comandos.");
+        return;
+      }
+
+      if (listening && recognition) {
+        recognition.stop();
+        return;
+      }
+
+      recognition = new SpeechRecognition();
+      recognition.lang = "es-HN";
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      recognition.onstart = () => {
+        listening = true;
+        voiceBtn.textContent = "■ DETENER ESCUCHA";
+        statusEl.textContent = "Escuchando...";
+      };
+
+      recognition.onresult = event => {
+        const transcript = event.results[0][0].transcript;
+        commandEl.value = transcript;
+        processCommand(transcript);
+      };
+
+      recognition.onerror = event => {
+        speak("No pude reconocer la voz. Revisa el permiso del micrófono e inténtalo de nuevo.");
+        statusEl.textContent = "Error de reconocimiento: " + event.error;
+      };
+
+      recognition.onend = () => {
+        listening = false;
+        voiceBtn.textContent = "🎙 ACTIVAR VOZ";
+        if (!window.speechSynthesis.speaking) {
+          statusEl.textContent = "Sistema en espera";
+        }
+      };
+
+      try {
+        recognition.start();
+      } catch (error) {
+        statusEl.textContent = "No se pudo iniciar el micrófono";
+      }
+    });
+  </script>
+</body>
+</html>
